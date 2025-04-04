@@ -34,6 +34,13 @@ class AlgorithmArgs(argparse.Namespace):
         args["customParameters"] = CustomParameters(**filtered_parameters)
         return AlgorithmArgs(**args)
 
+    @staticmethod
+    def from_dict(args: dict) -> 'AlgorithmArgs':
+        custom_parameter_keys = dir(CustomParameters())
+        filtered_parameters = dict(filter(lambda x: x[0] in custom_parameter_keys, args.get("customParameters", {}).items()))
+        args["customParameters"] = CustomParameters(**filtered_parameters)
+        return AlgorithmArgs(**args)
+
 
 def set_random_state(config: AlgorithmArgs) -> None:
     seed = config.customParameters.random_state
@@ -43,14 +50,14 @@ def set_random_state(config: AlgorithmArgs) -> None:
 
 
 def load_data(config: AlgorithmArgs) -> np.ndarray:
-    print(f"Loading: {config.dataInput}")
-    columns = pd.read_csv(config.dataInput, index_col="timestamp", nrows=0).columns.tolist()
-    anomaly_columns = [x for x in columns if x.startswith("is_anomaly")]
-    data_columns = columns[:-len(anomaly_columns)]
+    print(f"Loading: {config.data}")
+    
+    dataset = pd.read_parquet(config.dataInput)
 
-    dtypes = {col: np.float32 for col in data_columns}
-    dtypes.update({col: np.uint8 for col in anomaly_columns})
-    dataset = pd.read_csv(config.dataInput, index_col="timestamp", parse_dates=True, dtype=dtypes)
+    columns = [col for col in dataset.columns if col != "id"]
+
+    anomaly_columns = [x for x in columns if x.startswith("is_anomaly")]
+    data_columns = [x for x in columns if x not in anomaly_columns]
 
     if config.customParameters.target_channels is None or len(
             set(config.customParameters.target_channels).intersection(data_columns)) == 0:
